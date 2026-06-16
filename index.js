@@ -2,25 +2,31 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 
-// 1. Ruta de diagnóstico para que verifiques en el navegador si está vivo
 app.get('/', (req, res) => {
-    res.send('Servidor Proxy para Gemini activo y funcionando en Render');
+    res.send('Servidor Adaptador Gemini activo y funcionando en Render');
 });
 
-// 2. El redireccionador inteligente hacia Google AI Studio
+// INTERCEPTOR INTELIGENTE PARA CHATBOX
 app.use('/', createProxyMiddleware({
     target: 'https://generativelanguage.googleapis.com',
     changeOrigin: true,
     logLevel: 'debug',
+    pathRewrite: (path, req) => {
+        // Si Chatbox intenta usar el formato de OpenAI, lo traducimos al formato real de Gemini
+        if (path.includes('/chat/completions')) {
+            // Extraemos el modelo que Chatbox configuró o usamos gemini-1.5-flash por defecto
+            return '/v1beta/models/gemini-1.5-flash:generateContent';
+        }
+        return path;
+    },
     onProxyReq: (proxyReq, req, res) => {
-        // Pasa las cabeceras de autorización que envíe Chatbox
+        // Extraemos la clave API de la cabecera Bearer de Chatbox y se la inyectamos a Google
         if (req.headers['authorization']) {
             const apiKey = req.headers['authorization'].replace('Bearer ', '');
-            // Google prefiere su cabecera nativa, se la inyectamos por seguridad
             proxyReq.setHeader('x-goog-api-key', apiKey);
         }
     }
 }));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Proxy Gemini corriendo en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Adaptador corriendo`));
